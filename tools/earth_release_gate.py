@@ -482,6 +482,61 @@ def check_pills_and_jei(errors: list[str]) -> None:
             errors.append("[PILL-FAKE-DURATION] XuanhuanPills.java still contains 5-10s placeholder durations")
 
 
+def check_chat_spam_and_lang_keys(errors: list[str]) -> None:
+    """Forbid sendSystemMessage in gameplay classes and enforce complete zh_cn/en_us lang keys and clean UTF-8."""
+    for mod_id, mod_dir in ACTIVE_MODS.items():
+        java_dir = mod_dir / "src" / "main" / "java"
+        lang_dir = mod_dir / "src" / "main" / "resources" / "assets" / mod_id / "lang"
+        if not java_dir.exists():
+            continue
+        zh = json.loads((lang_dir / "zh_cn.json").read_text(encoding="utf-8")) if (lang_dir / "zh_cn.json").exists() else {}
+        en = json.loads((lang_dir / "en_us.json").read_text(encoding="utf-8")) if (lang_dir / "en_us.json").exists() else {}
+        required_keys: set[str] = set()
+        chat_files: list[str] = []
+        for jf in sorted(java_dir.rglob("*.java")):
+            raw = jf.read_bytes()
+            try:
+                src = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                errors.append(f"[JAVA-UTF8] {mod_id}/{jf.name} is not valid UTF-8")
+                continue
+            if "\ufffd" in src:
+                errors.append(f"[JAVA-MOJIBAKE] {mod_id}/{jf.name} contains Unicode replacement character U+FFFD")
+            rel_parts = jf.relative_to(java_dir).parts
+            if "command" not in rel_parts and "Command" not in jf.name and "Test" not in jf.name:
+                cnt = src.count(".sendSystemMessage(")
+                if cnt > 0:
+                    chat_files.append(f"{jf.name}({cnt})")
+            for m in re.finditer(r'Component\.translatable\(\s*"([a-z0-9_.-]+)"', src):
+                k = m.group(1)
+                if not k.endswith(".") and mod_id in k and k != "guide.earth_on_minecraft.line":
+                    required_keys.add(k)
+        if mod_id == "xuanhuan_earth":
+            si = java_dir / "com" / "xxsx" / "xuanhuanearth" / "SpiritImplementItem.java"
+            if si.exists():
+                stxt = si.read_text(encoding="utf-8", errors="replace")
+                for m in re.finditer(r'([A-Z_]+)\("([a-z0-9_]+)",\s*[0-9.]+D,\s*[0-9.]+D,\s*[0-9.]+D,\s*[0-9.]+D\)', stxt):
+                    imp_id = m.group(2)
+                    required_keys.add(f"item.xuanhuan_earth.{imp_id}")
+                    required_keys.add(f"tooltip.xuanhuan_earth.{imp_id}")
+                    required_keys.add(f"message.xuanhuan_earth.implement.cast.{imp_id}")
+            xp = java_dir / "com" / "xxsx" / "xuanhuanearth" / "XuanhuanPills.java"
+            if xp.exists():
+                ptxt = xp.read_text(encoding="utf-8", errors="replace")
+                for m in re.finditer(r'"(message\.xuanhuan_earth\.[a-z0-9_.-]+)"', ptxt):
+                    required_keys.add(m.group(1))
+        if chat_files:
+            errors.append(
+                f"[CHAT-SPAM-SYSTEM-MSG] {mod_id} uses sendSystemMessage in {len(chat_files)} non-command classes (must use sendOverlayMessage): {', '.join(chat_files[:8])}"
+            )
+        missing_zh = sorted(k for k in required_keys if k not in zh)
+        missing_en = sorted(k for k in required_keys if k not in en)
+        if missing_zh:
+            errors.append(f"[LANG-KEY-MISSING-ZH] {mod_id} zh_cn.json missing {len(missing_zh)} keys: {', '.join(missing_zh[:8])}")
+        if missing_en:
+            errors.append(f"[LANG-KEY-MISSING-EN] {mod_id} en_us.json missing {len(missing_en)} keys: {', '.join(missing_en[:8])}")
+
+
 def check_textures(warnings: list[str]) -> int:
     total_pngs = 0
     min_colors = 10
@@ -529,6 +584,7 @@ def main() -> int:
     check_3d_model_uv_and_textures(warnings)
     check_occlusion_and_worldgen_interactions(errors)
     check_pills_and_jei(errors)
+    check_chat_spam_and_lang_keys(errors)
     png_count = check_textures(warnings)
 
     print(f"EARTH_GATE nodes={node_count} models_checked={model_count} pngs={png_count} errors={len(errors)} warnings={len(warnings)}")
