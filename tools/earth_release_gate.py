@@ -555,10 +555,12 @@ def check_textures(warnings: list[str]) -> int:
                 try:
                     with Image.open(p) as im:
                         rgba = im.convert("RGBA")
-                        px_iter = rgba.get_flattened_data() if hasattr(rgba, "get_flattened_data") else rgba.getdata()
-                        colors = {px[:3] for px in px_iter if px[3] > 16}
+                        px_list = list(rgba.get_flattened_data() if hasattr(rgba, "get_flattened_data") else rgba.getdata())
+                        colors = {px[:3] for px in px_list if px[3] > 16}
                         if len(colors) < min_colors:
                             flat_palettes.append(f"{rel_str}({len(colors)}c)")
+                        if rel_str.startswith("item/") and sum(1 for px in px_list if px[3] <= 16) < 24:
+                            flat_palettes.append(f"{rel_str}(no-alpha-silhouette)")
                 except Exception as exc:
                     warnings.append(f"[TEXTURE-READ] {mod_id}/{rel_str} failed to decode: {exc}")
         dups = {h: paths for h, paths in hashes.items() if len(paths) > 1}
