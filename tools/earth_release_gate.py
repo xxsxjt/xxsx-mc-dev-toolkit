@@ -33,6 +33,7 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 EARTH = ROOT / "earth-series"
@@ -483,19 +484,37 @@ def check_pills_and_jei(errors: list[str]) -> None:
 
 def check_textures(warnings: list[str]) -> int:
     total_pngs = 0
+    min_colors = 10
     for mod_id, mod_dir in ACTIVE_MODS.items():
         tex_dir = mod_dir / "src" / "main" / "resources" / "assets" / mod_id / "textures"
         if not tex_dir.exists():
             continue
         hashes: dict[str, list[str]] = defaultdict(list)
+        flat_palettes: list[str] = []
         for p in tex_dir.rglob("*.png"):
             total_pngs += 1
+            rel_str = p.relative_to(tex_dir).as_posix()
             h = hashlib.sha256(p.read_bytes()).hexdigest()
-            hashes[h].append(p.relative_to(tex_dir).as_posix())
+            hashes[h].append(rel_str)
+            if rel_str.startswith(("item/", "block/")):
+                try:
+                    with Image.open(p) as im:
+                        rgba = im.convert("RGBA")
+                        px_iter = rgba.get_flattened_data() if hasattr(rgba, "get_flattened_data") else rgba.getdata()
+                        colors = {px[:3] for px in px_iter if px[3] > 16}
+                        if len(colors) < min_colors:
+                            flat_palettes.append(f"{rel_str}({len(colors)}c)")
+                except Exception as exc:
+                    warnings.append(f"[TEXTURE-READ] {mod_id}/{rel_str} failed to decode: {exc}")
         dups = {h: paths for h, paths in hashes.items() if len(paths) > 1}
         if dups:
             sample = "; ".join(", ".join(paths[:3]) for paths in list(dups.values())[:3])
             warnings.append(f"[TEXTURE-DUP] {mod_id} has {len(dups)} duplicate texture hash groups (e.g. {sample})")
+        if flat_palettes:
+            sample = ", ".join(flat_palettes[:6])
+            warnings.append(
+                f"[TEXTURE-FLAT-PALETTE] {mod_id} has {len(flat_palettes)} textures with <{min_colors} distinct RGB shades (e.g. {sample})"
+            )
     return total_pngs
 
 

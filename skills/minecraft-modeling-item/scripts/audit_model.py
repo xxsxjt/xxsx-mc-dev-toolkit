@@ -84,8 +84,11 @@ class Audit:
             im = Image.open(io.BytesIO(data)).convert('RGBA')
             w, h = im.size
             alpha = im.getchannel('A').histogram()
+            px_iter = im.get_flattened_data() if hasattr(im, 'get_flattened_data') else im.getdata()
+            distinct_rgb = len({px[:3] for px in px_iter if px[3] > 16})
             row = {'size': [w, h], 'pixels': w*h, 'rgba_base_bytes': w*h*4,
                    'transparent_pixels': alpha[0], 'partial_alpha_pixels': sum(alpha[1:255]),
+                   'distinct_rgb_colors': distinct_rgb,
                    'frame_size': [w, h], 'frame_count': 1, 'animation_metadata_checked': False}
             if bb_info:
                 row['uv_size'] = [bb_info.get('uv_width'), bb_info.get('uv_height')]
@@ -121,6 +124,8 @@ class Audit:
                 self.issue('animation_metadata_unverified', key, 'Tall embedded PNG is not proof of an exported animation; inspect matching .mcmeta.')
             if sum(alpha[1:255]):
                 self.issue('translucency_review', key, 'Partial alpha exists; inspect target render pass and sorting.')
+            if distinct_rgb < 10:
+                self.issue('texture_flat_palette', key, f'Only {distinct_rgb} distinct opaque RGB shades (<10); needs hue-shifted shading ramp and contour depth.')
             self.textures[key] = row
         except Exception as exc:
             self.issue('texture_invalid', key, str(exc), True)
