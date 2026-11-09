@@ -1,0 +1,20 @@
+{
+  "attribute.examplemod.example_ability.desc": "示例能力",
+  "block.examplemod.example_block": "示例方块",
+  "block.examplemod.example_custom_block": "示例自定义方块",
+  "command.examplemod.value_set": "数值已设为 %s",
+  "custom_registry.examplemod.simple.desc": "简单风格",
+  "error.examplemod.attachment": "附件数据异常",
+  "examplemod.configuration.EnableFeature": "启用示例功能",
+  "examplemod.configuration.General": "通用配置",
+  "examplemod.configuration.MaxValue": "数值上限",
+  "examplemod.configuration.ShowOverlay": "显示示例叠层",
+  "examplemod.resources": "ExampleMod资源",
+  "item.examplemod.example_custom_item": "示例自定义物品",
+  "item.examplemod.example_item": "示例物品",
+  "item_group.examplemod.examplemod": "示例",
+  "key.examplemod.action.name": "示例动作",
+  "key.examplemod.category.name": "ExampleMod",
+  "sound.examplemod.example_sound.desc": "示例音效",
+  "tooltip.examplemod.example_item.desc": "示例物品"
+}

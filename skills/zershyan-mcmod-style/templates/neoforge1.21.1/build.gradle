@@ -1,0 +1,224 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.148'
+    id 'idea'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+group = mod_group_id
+
+// 包内版本号恒带 +build.<编号>，只有 buildAlpha 会把这个编号也写进 jar 文件名
+def isAlphaBuild = gradle.startParameter.taskNames.any { it.endsWith('buildAlpha') }
+// buildAlpha 用 +1 后的编号构建，成功后把同一编号写回 gradle.properties，
+// 使产物里的编号与 properties 始终一致
+def buildNumber = mod_build_number.toInteger() + (isAlphaBuild ? 1 : 0)
+def baseVersion = "${mod_version}-${minecraft_version}"
+version = "${baseVersion}+build.${buildNumber}"
+
+sourceSets.main.resources {
+    srcDir('src/generated/resources')
+    exclude("**/*.bbmodel") // BlockBench 工程文件
+    exclude("**/.cache/**") // datagen 缓存
+}
+
+repositories {
+    mavenLocal()
+    // 本地 jar 依赖：libs/<name>-<version>.jar，坐标写 blank:<name>:<version>
+    flatDir {
+        dir 'libs'
+    }
+    maven { // TOP
+        url "https://cursemaven.com"
+    }
+    maven { // mirror
+        name = "ModMaven"
+        url = "https://modmaven.dev"
+    }
+    maven { url = "https://maven.enjarai.dev/mirrors" }
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+    }
+}
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    // accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
+
+    runs {
+        client1 {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            gameDirectory = project.file('./run/client1')
+            programArguments.addAll("--username", "player1")
+        }
+
+        client2 {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            gameDirectory = project.file('./run/client2')
+            programArguments.addAll("--username", "player2")
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    compileOnly(fileTree("libs/compileOnly"))
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            // 包内版本号恒带 +build.<编号>，用 gradle 的 version 而非 mod_version
+            mod_version            : version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+            mod_credits            : mod_credits,
+            mod_url                : mod_url,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+// 对外发布用正式版本号，不带 +build.<编号>；置 maven_publish_release_version=false 才沿用带编号版本
+def publishReleaseVersion = (project.findProperty('maven_publish_release_version') ?: 'true').toBoolean()
+def publishVersion = publishReleaseVersion ? baseVersion : version
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+            version = publishVersion
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// 打包收尾：最终包改名到 libs 顶层，原包（带编号）挪进 libs/origin
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+tasks.register('finalizeArtifacts') {
+    group = 'build'
+    description = '整理 build/libs：最终包改名，原包挪进 origin 子目录'
+    def libsDir = layout.buildDirectory.dir('libs').get().asFile
+    def modId = mod_id
+    def modVersion = version
+    def releaseVersion = isAlphaBuild ? version : baseVersion
+    doLast {
+        def builtJar = new File(libsDir, "${modId}-${modVersion}.jar")
+        def backupJar = new File(new File(libsDir, 'origin'), "${modId}-${modVersion}-origin.jar")
+        if (releaseVersion != modVersion) {
+            // 最终包与原包内容一致，只是名字不带编号；原包上一轮可能已搬进 origin，就从那里取
+            def source = builtJar.exists() ? builtJar : backupJar
+            if (source.exists()) {
+                Files.copy(source.toPath(), new File(libsDir, "${modId}-${releaseVersion}.jar").toPath(), StandardCopyOption.REPLACE_EXISTING)
+                if (source == builtJar) {
+                    backupJar.parentFile.mkdirs()
+                    Files.move(builtJar.toPath(), backupJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+            }
+        } else if (!builtJar.exists() && backupJar.exists()) {
+            // buildAlpha 的最终包与原包同名，把上一轮搬走的原包取回来
+            Files.copy(backupJar.toPath(), builtJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
+}
+
+tasks.named('build') { finalizedBy 'finalizeArtifacts' }
+
+// 与 build 完全相同，只是编号 +1 并把该编号同步回 gradle.properties
+tasks.register('buildAlpha') {
+    group = 'build'
+    description = '打成 alpha 包，产物版本号带 +build.<编号>，构建成功后把该编号同步回 gradle.properties'
+    dependsOn 'build'
+    def propsFile = layout.projectDirectory.file('gradle.properties').asFile
+    def buildNumberBefore = mod_build_number
+    def buildNumberUsed = buildNumber
+    doLast {
+        def text = propsFile.getText('UTF-8')
+        def matcher = (text =~ '(?m)^mod_build_number=\\s*(\\d+)\\s*$')
+        if (!matcher.find()) {
+            logger.warn('mod_build_number not found in gradle.properties, skipped sync')
+            return
+        }
+        propsFile.setText(
+                text.replaceFirst('(?m)^mod_build_number=\\s*\\d+\\s*$', "mod_build_number=${buildNumberUsed}"),
+                'UTF-8')
+        logger.lifecycle("mod_build_number synced: ${buildNumberBefore} -> ${buildNumberUsed}")
+    }
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

@@ -1,0 +1,124 @@
+{
+  "_comment": "MC百科模组条目提交字段的枚举对照，2026-11 从添加页实测取得。键是提交时的 data-multi-value，值是页面显示文本。",
+  "platform": {
+    "1": "JAVA版 (JAVA Edition)",
+    "2": "基岩版 (Bedrock Edition)"
+  },
+  "api": {
+    "1": "Forge",
+    "2": "Fabric",
+    "3": "Rift",
+    "4": "LiteLoader",
+    "5": "数据包",
+    "6": "命令方块",
+    "7": "文件覆盖",
+    "8": "行为包",
+    "9": "Sandbox",
+    "10": "其他",
+    "11": "Quilt",
+    "13": "NeoForge",
+    "14": "NilLoader",
+    "15": "Cleanroom",
+    "16": "内容包",
+    "17": "JavaAgent"
+  },
+  "mode": {
+    "0": "待考证",
+    "1": "需装",
+    "2": "可选",
+    "3": "无效"
+  },
+  "status": {
+    "0": "不确定",
+    "1": "活跃",
+    "2": "半弃坑",
+    "3": "停更"
+  },
+  "source": {
+    "0": "不显示",
+    "1": "开源",
+    "2": "闭源"
+  },
+  "role": {
+    "owner": "所有者",
+    "programmer": "程序",
+    "artist": "美术",
+    "sound": "音效",
+    "planner": "策划",
+    "writer": "文案",
+    "builder": "建筑",
+    "contributor": "贡献者",
+    "mascot": "吉祥物",
+    "other": "自定义"
+  },
+  "licenseType": {
+    "source": "源码",
+    "asset": "资产",
+    "artifact": "构件",
+    "other": "其他"
+  },
+  "itemCategory": {
+    "1": "物品/方块",
+    "2": "群系/群落",
+    "3": "世界/维度",
+    "4": "生物/实体",
+    "5": "附魔/魔咒",
+    "6": "BUFF/DEBUFF",
+    "7": "多方块结构",
+    "8": "自然生成",
+    "9": "绑定热键",
+    "10": "游戏设定"
+  },
+  "licenseName": {
+    "ARR": "All Rights Reserved（非许可协议）",
+    "MIT": "MIT",
+    "AGPL-3.0": "GNU Affero General Public License version 3",
+    "GPL-3.0": "GNU General Public License version 3",
+    "GPL-2.0": "GNU General Public License version 2",
+    "LGPL-3.0": "GNU Lesser General Public License version 3",
+    "Apache-2.0": "Apache License, Version 2.0",
+    "MPL-2.0": "Mozilla Public License 2.0",
+    "BSD-3-Clause": "3-Clause BSD License",
+    "CC-BY-4.0": "CC BY 4.0",
+    "CC-BY-SA-4.0": "CC BY-SA 4.0"
+  },
+  "categoryCore": {
+    "1,1": "科技",
+    "1,2": "魔法",
+    "1,3": "冒险",
+    "1,4": "农业",
+    "1,5": "装饰",
+    "1,7": "LIB",
+    "1,21": "魔改",
+    "1,23": "实用",
+    "1,24": "辅助"
+  },
+  "categoryExtra": {
+    "0,6": "安全",
+    "0,8": "资源",
+    "0,9": "世界",
+    "0,10": "群系",
+    "0,11": "生物",
+    "0,12": "能源",
+    "0,13": "存储",
+    "0,14": "物流",
+    "0,15": "道具",
+    "0,16": "红石",
+    "0,17": "食物",
+    "0,18": "模型",
+    "0,19": "指南",
+    "0,20": "破坏",
+    "0,22": "Meme",
+    "0,25": "中式",
+    "0,26": "日式",
+    "0,27": "西式",
+    "0,28": "恐怖",
+    "0,29": "建材",
+    "0,30": "生存",
+    "0,31": "指令",
+    "0,32": "优化",
+    "0,33": "国创",
+    "0,34": "关卡",
+    "0,35": "结构"
+  }
+}

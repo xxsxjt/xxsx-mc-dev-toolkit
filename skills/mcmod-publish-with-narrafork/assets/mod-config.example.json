@@ -1,0 +1,43 @@
+{
+  "name": "模组中文名（询问用户）",
+  "ename": "ModName（mod_name）",
+  "sname": "社区通用缩写，如 GT6、TiC2；没有就留空",
+  "intro": "一句话简介（mod_description）",
+  "modid": "modid（mod_id）",
+  "cfprojectid": "CurseForge 项目 ID（从 curseforge/project.json 取）",
+  "mrprojectid": "Modrinth 项目 ID，没有就留空",
+  "coverPath": "封面原图路径，16:10 居中裁切后缩放到 480×300",
+  "category": ["LIB"],
+  "mcVersions": {
+    "NeoForge": ["1.21.1"]
+  },
+  "mode1": "需装",
+  "mode2": "需装",
+  "status": "活跃",
+  "source": "开源",
+  "license": {
+    "type": "源码",
+    "name": "ARR"
+  },
+  "tags": ["标签"],
+  "keys": ["搜索关键词"],
+  "links": [
+    {
+      "title": "curseforge",
+      "href": "https://www.curseforge.com/minecraft/mc-mods/<slug>",
+      "text": ""
+    },
+    {
+      "title": "github",
+      "href": "https://github.com/<user>/<repo>",
+      "text": ""
+    }
+  ],
+  "authors": [
+    {
+      "name": "<百科作者名>",
+      "role": "所有者"
+    }
+  ],
+  "content": "<p>[ban:title_menu]</p><p>[h1=介绍]</p><p>正文…</p>"
+}

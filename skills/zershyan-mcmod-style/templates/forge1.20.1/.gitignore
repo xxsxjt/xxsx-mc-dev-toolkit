@@ -1,0 +1,13 @@
+.DS_Store
+.gradle/
+build/
+out/
+.idea/
+*.iml
+.idea_modules/
+hs_err_pid*
+run/
+run-data/
+
+# 仅忽略缓存，保留数据生成产物
+src/generated/resources/.cache/

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Minecraft Creature Workflow"
+  short_description: "Build and validate Minecraft creature assets"
+  default_prompt: "Use $minecraft-creature-workflow to build or audit a Minecraft creature asset package for a specified Java, Bedrock, or GeckoLib target."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,8 @@
+{
+  "values": [
+    "examplemod:example_item",
+    "examplemod:example_custom_item",
+    "examplemod:example_block",
+    "examplemod:example_custom_block"
+  ]
+}

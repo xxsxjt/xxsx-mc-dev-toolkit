@@ -1,0 +1,117 @@
+<!doctype html>
+<!-- 流程图的源文件。改完重新截图：
+     chrome --headless=new --window-size=1160,920 --force-device-scale-factor=1 \
+       --hide-scrollbars --screenshot=assets/flow.png assets/flow.html -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1160px; height: 920px; background: #fbfbfd; overflow: hidden;
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  .grid {
+    display: grid; grid-template-columns: 560px 560px; grid-template-rows: 420px 420px;
+    gap: 20px; padding: 10px;
+  }
+  .card {
+    background: #fff; border: 1px solid #dee2e6; border-radius: 14px;
+    padding: 18px 24px; display: flex; flex-direction: column;
+  }
+  .card h2 { font-size: 21px; font-weight: 700; color: #1b1f24; margin-bottom: 14px; }
+  .step {
+    border: 1px solid #ced4da; border-radius: 9px; padding: 11px 16px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .h3 { height: 88px; }
+  .h4 { height: 68px; }
+  .step b { font-size: 16px; font-weight: 600; color: #1b1f24; display: block; margin-bottom: 5px; }
+  .step span { font-size: 13px; color: #495057; line-height: 1.35; }
+  .arrow { height: 22px; position: relative; }
+  .arrow::before {
+    content: ""; position: absolute; left: 50%; top: 0; width: 1.6px; height: 15px;
+    background: #adb5bd; transform: translateX(-0.8px);
+  }
+  .arrow::after {
+    content: ""; position: absolute; left: 50%; top: 14px; transform: translateX(-5px);
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 7px solid #adb5bd;
+  }
+  .tips {
+    height: 40px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: #868e96;
+  }
+</style>
+</head>
+<body>
+<div class="grid">
+
+  <div class="card">
+    <h2>① 先搞清楚要发什么</h2>
+    <div class="step h3" style="background:#e7f5ff">
+      <b>体检工程</b><span>看看这是什么模组、缺不缺东西</span>
+    </div>
+    <div class="arrow"></div>
+    <div class="step h3" style="background:#fff4e6">
+      <b>缺什么补什么</b><span>装工具、要令牌、拿登录状态</span>
+    </div>
+    <div class="arrow"></div>
+    <div class="step h3" style="background:#f3f0ff">
+      <b>确认要发哪些版本</b><span>每个分支填一个版本号</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>② 一次问全，然后才编译</h2>
+    <div class="step h3" style="background:#f3f0ff">
+      <b>填一张表</b><span>名字、分类、版本、百科信息，一次填完</span>
+    </div>
+    <div class="arrow"></div>
+    <div class="step h3" style="background:#e6fcf5">
+      <b>图标定了再编译</b><span>表里定下的图标要进安装包，所以编译排在后面</span>
+    </div>
+    <div class="arrow"></div>
+    <div class="step h3" style="background:#ffe3e3">
+      <b>你自己点确认</b><span>把要发的东西摊开给你看，点完才动手</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>③ 发到 CurseForge</h2>
+    <div class="step h4" style="background:#fff4e6">
+      <b>有项目就跳过，没有才建</b><span>会自动填好页面，你只需看一眼</span>
+    </div>
+    <div class="arrow"></div>
+    <div class="step h4" style="background:#e7f5ff">
+      <b>顺手补上源码地址</b><span>GitHub 链接这类，向导里没有</span>
+    </div>
+    <div class="arrow"></div>
+    <div class="step h4" style="background:#e6fcf5">
+      <b>把安装包传上去</b><span>传过的会自动跳过，不会重复发</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>④ 要不要发到百科（可选）</h2>
+    <div class="step h4" style="background:#fff4e6">
+      <b>这一步可选</b><span>表单里勾了才做，没勾就跳过</span>
+    </div>
+    <div class="arrow"></div>
+    <div class="step h4" style="background:#f3f0ff">
+      <b>百科的登录还在吗</b><span>失效了就在浏览器里打开一次，或让我找你要</span>
+    </div>
+    <div class="arrow"></div>
+    <div class="step h4" style="background:#e6fcf5">
+      <b>自动填好，你填验证码</b><span>填完检查一遍，你自己点提交</span>
+    </div>
+    <div class="arrow"></div>
+    <div class="step h4" style="background:#e7f5ff">
+      <b>最后给你三个链接</b><span>审核进度都能点进去看</span>
+    </div>
+  </div>
+
+</div>
+<div class="tips">三处会停下来等你：填表、验证码、浏览器里的操作。其余步骤自动往下走。</div>
+</body>
+</html>

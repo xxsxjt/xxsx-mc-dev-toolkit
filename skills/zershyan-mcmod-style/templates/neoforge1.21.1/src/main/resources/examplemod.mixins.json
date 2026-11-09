@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.zershyan.examplemod.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "io.zershyan.examplemod.mixin.ExampleModMixinPlugin",
+  "mixins": [
+    "examplemod.common.MixinLivingEntity"
+  ],
+  "client": [
+    "examplemod.client.MixinMinecraft"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

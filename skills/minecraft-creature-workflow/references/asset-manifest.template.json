@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "creature": {
+    "id": "example:creature",
+    "class": "mob",
+    "edition": "bedrock",
+    "minecraft_version": "unconfirmed",
+    "loader_or_pack_version": "unconfirmed",
+    "model_target": "bedrock-geometry",
+    "scale_notes": "Record in-game scale and hitbox assumptions here."
+  },
+  "files": [
+    {
+      "path": "source/creature.bbmodel",
+      "kind": "bbmodel",
+      "bytes": 0,
+      "sha256": "",
+      "source": {
+        "origin": "original",
+        "title": "",
+        "author_or_licensor": "",
+        "source_url": "",
+        "revision": "",
+        "checked_at": "YYYY-MM-DD",
+        "license_id": "NOASSERTION",
+        "license_url": "",
+        "license_evidence_url": "",
+        "rights": {
+          "commercial_use": "unknown",
+          "modify": "unknown",
+          "redistribute": "unknown"
+        },
+        "attribution_required": "unknown",
+        "notice_required": "unknown",
+        "attribution_text": "",
+        "notes": ""
+      },
+      "transform": {
+        "status": "discovered",
+        "tool": "",
+        "tool_version": "",
+        "notes": ""
+      }
+    }
+  ],
+  "checks": {
+    "preview": "unconfirmed",
+    "target_load": "unconfirmed",
+    "runtime_render": "unconfirmed",
+    "dedicated_server_review": "not_applicable"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "attribute.examplemod.example_ability.desc": "Example Ability",
+  "block.examplemod.example_block": "Example Block",
+  "block.examplemod.example_custom_block": "Example Custom Block",
+  "command.examplemod.value_set": "Value set to %s",
+  "custom_registry.examplemod.simple.desc": "Simple Style",
+  "examplemod.configuration.enable_feature": "Enable Feature",
+  "examplemod.configuration.max_value": "Max Value",
+  "examplemod.configuration.show_overlay": "Show Overlay",
+  "examplemod.resources": "Resources for ExampleMod",
+  "item.examplemod.example_custom_item": "Example Custom Item",
+  "item.examplemod.example_item": "Example Item",
+  "item_group.examplemod.examplemod": "ExampleMod",
+  "key.examplemod.action.name": "Example Action",
+  "key.examplemod.category.name": "ExampleMod",
+  "message.examplemod.overlay_value": "Example: %s",
+  "sound.examplemod.example_sound.desc": "Example Sound",
+  "tooltip.examplemod.example_item.desc": "An example item.",
+  "tooltip.examplemod.value": "Value: %s"
+}

@@ -1,0 +1,16 @@
+{
+  "name": "模组英文名",
+  "summary": "一句话简介，CurseForge 限制 1～256 字符",
+  "license": "MIT",
+  "distribution": "Allow distribution to 3rd party",
+  "allowComments": true,
+  "projectPages": true,
+  "autoCreate": true,
+  "dropdowns": [
+    ["Class", "Mods"],
+    ["Main category", "Mobs"],
+    ["Additional categories", "Server Utility"]
+  ],
+  "description": "description.md",
+  "icon": "icon.png"
+}
