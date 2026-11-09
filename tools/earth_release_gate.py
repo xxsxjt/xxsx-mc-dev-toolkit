@@ -537,6 +537,51 @@ def check_chat_spam_and_lang_keys(errors: list[str]) -> None:
             errors.append(f"[LANG-KEY-MISSING-EN] {mod_id} en_us.json missing {len(missing_en)} keys: {', '.join(missing_en[:8])}")
 
 
+def check_block_models_avoid_redundant_textures(errors: list[str], warnings: list[str]) -> None:
+    """Ensure every block item renders its 3D block model directly and flag orphaned/unreferenced block PNGs."""
+    for mod_id, mod_dir in ACTIVE_MODS.items():
+        res = mod_dir / "src" / "main" / "resources" / "assets" / mod_id
+        bs_dir = res / "blockstates"
+        bm_dir = res / "models" / "block"
+        im_dir = res / "models" / "item"
+        it_dir = res / "items"
+        tb_dir = res / "textures" / "block"
+        ti_dir = res / "textures" / "item"
+        blocks = [f.stem for f in sorted(bs_dir.glob("*.json"))] if bs_dir.exists() else []
+        for b in blocks:
+            if b in ("structure_projection", "settlement_anchor"):
+                continue
+            im_f = im_dir / f"{b}.json"
+            it_f = it_dir / f"{b}.json"
+            if im_f.exists():
+                im_data = json.loads(im_f.read_text(encoding="utf-8"))
+                par = im_data.get("parent", "")
+                if par in ("minecraft:item/generated", "item/generated", "minecraft:item/handheld", "item/handheld"):
+                    errors.append(
+                        f"[BLOCK-ITEM-FLAT-2D] {mod_id}:models/item/{b}.json uses 2D '{par}' instead of inheriting 3D block model '{mod_id}:block/{b}'"
+                    )
+            if (ti_dir / f"{b}.png").exists():
+                errors.append(
+                    f"[BLOCK-REDUNDANT-ITEM-PNG] {mod_id}:textures/item/{b}.png is redundant; block item should render 3D model '{mod_id}:block/{b}' directly"
+                )
+        if mod_id in ("earth_theology", "xuanhuan_earth", "fantasy_earth", "earth_lore") and tb_dir.exists():
+            referenced: set[str] = set()
+            for mdir in (bm_dir, im_dir):
+                if not mdir.exists():
+                    continue
+                for mf in mdir.glob("*.json"):
+                    mdata = json.loads(mf.read_text(encoding="utf-8"))
+                    for v in mdata.get("textures", {}).values():
+                        if isinstance(v, str) and v.startswith(f"{mod_id}:block/"):
+                            referenced.add(v.split(":block/", 1)[1] + ".png")
+            all_tb = {f.relative_to(tb_dir).as_posix() for f in tb_dir.rglob("*.png")}
+            orphans = sorted(all_tb - referenced)
+            if orphans:
+                warnings.append(
+                    f"[BLOCK-ORPHAN-PNG] {mod_id} has {len(orphans)} unreferenced textures/block/*.png (e.g. {', '.join(orphans[:6])})"
+                )
+
+
 def check_textures(warnings: list[str]) -> int:
     total_pngs = 0
     min_colors = 10
@@ -587,6 +632,7 @@ def main() -> int:
     check_occlusion_and_worldgen_interactions(errors)
     check_pills_and_jei(errors)
     check_chat_spam_and_lang_keys(errors)
+    check_block_models_avoid_redundant_textures(errors, warnings)
     png_count = check_textures(warnings)
 
     print(f"EARTH_GATE nodes={node_count} models_checked={model_count} pngs={png_count} errors={len(errors)} warnings={len(warnings)}")
