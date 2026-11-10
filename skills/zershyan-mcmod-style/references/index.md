@@ -28,6 +28,7 @@
 | 资源与构建 | 工程模板、Gradle、运行配置、元数据、依赖声明、ProGuard、构建请求、发布 | [构建与发布](build.md) | [版本号](versioning.md) |
 | 资源与构建 | mod_version、mod_build_number、buildAlpha、jar 命名、发布版本 | [版本号与产物](versioning.md) | [构建](build.md) |
 | 资源与构建 | example、开发环境、production、示例开关 | [示例代码](example.md) | [双端结构](architecture.md) |
+| 渲染与结构 | 水车、伪多方块、单核心NBT、BER越界渲染、视锥剔除、核心高亮边框 | [单核心NBT伪多方块与越界BER渲染](single-block-nbt-ber.md) | [数据与附件](attachments.md)、[主类与双端](architecture.md) |
 
 ## 常见任务
 
