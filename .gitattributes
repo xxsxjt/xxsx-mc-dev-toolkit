@@ -1,0 +1,12 @@
+# Keep binary assets binary so Git never applies text conversion to them.
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.jar     binary
+*.bbmodel binary
+
+# Shell scripts stay LF so they run unchanged on Linux and macOS.
+*.sh text eol=lf
+

@@ -215,7 +215,7 @@ PCL 的实例 JSON 是自包含的（无 `inheritsFrom`），由 vanilla JSON + 
 | MCP 插件备份 | `tools/bb_mcp_client.py` | 便携版同目录备份 |
 | MCP 端点 | `http://localhost:3000/bb-mcp` | 已在 4 个 Agent 配置中登记 |
 | 建模 Skill | 5 个 Agent 技能目录各一个 **junction**（不是正文副本），全部指向 `skills/minecraft-modeling-item` | 34 个受版本控制文件（含 `SKILL.md`）；2026-11-02 清理了 `scripts/__pycache__` |
-| 建模工程文件（`.bbmodel`）与预览图归档目录 | `D:/PRIVATE_RESTRICTED/Assets/Blockbench/<mod_id>/` | 与 `D:/PRIVATE_RESTRICTED/Assets/Blender` 同级集中存放，不分散塞进各 Mod 源码 git 仓库 |
+| 建模工程文件（`.bbmodel`）与预览图归档目录 | `<ASSET_ARCHIVE>/Blockbench/<mod_id>/` | 与 `<ASSET_ARCHIVE>/Blender` 同级集中存放，不分散塞进各 Mod 源码 git 仓库；具体根目录由本机环境决定，不写入公开仓库 |
 
 ### Agent 配置位置
 
@@ -287,7 +287,221 @@ node scripts/test_motion.js       # 9 项断言
    - `gpt-image-2.6` 可用于生成动态贴图源或宣传动图，但支持文本/静态图的主控模型（如 Gemini4）**严禁直接 `view_image` 读取动图**；一律由脚本（Pillow `ImageSequence`）在磁盘侧拆帧转换为 MC 纵向序列帧 PNG + `.png.mcmeta`，并输出静态网格预览图。
 
 
-## 11. 已知限制
+
+## 11. 2026-11-11 美术规格、多方块架构与世界生成实战规约
+
+本节把跨模组（earth_lore / earth_on_minecraft / xuanhuan_earth / fantasy_earth / earth_theology）反复踩到的六类问题固化为可执行门禁。每条按"症状 → 规则 → 检查点"组织，新增模组直接套用。
+
+### 11.1 分层像素美术规格（16x16 基础物料 + 32x32 复杂器物）与剪影色阶门禁
+
+**尺寸分层**
+
+| 层级 | 尺寸 | 适用对象 |
+|---|---|---|
+| 基础物料 | 16x16 RGBA | 矿粉、锭、粒、板、线、简单工具、单一材质图标 |
+| 复杂器物 | 32x32 RGBA | 铜钱剑等复合法剑、风水罗盘、3/4 斜向立体古籍/魔导书、符箓、乾坤袋、多材质护符 |
+
+判定标准不是"看起来复杂"，而是**图标内是否同时出现 3 种以上材质且需要斜向立体透视**。只有 1~2 种材质、正交视图即可表达的一律留在 16x16，避免无意义放大后再降采样。
+
+**色带与描边**
+
+- 统一 20 阶色带：暗部取冷色相（偏蓝紫），高光取暖色相（偏黄橙），中间段色相连续偏移；禁止只在明度上线性加白，那会得到灰蒙的"塑料感"。
+- 轮廓使用**深色内聚描边**（取该材质暗部再压暗 20%~30%），不描纯黑、不加外发光；描边必须闭合，四角断开视为剪影失败。
+- 不透明色阶 >= 12~18 色。低于 12 色视为平涂占位图。
+
+**剪影与唯一性**
+
+- 物品图标四角必须 alpha=0，且透明背景像素充足：16x16 至少 24 个 alpha=0 像素，32x32 至少 96 个。铺满整格的"无背景方块图"一律判失败（`no-alpha-silhouette`）。
+- 透明边距 >= 1px（16x16）/ >= 2px（32x32），保证在物品栏格子里不贴边。
+- 每张 PNG 的 SHA-256 在**全模组范围**内唯一；跨模组复用同一张图也算重复，必须重绘而不是复制。
+
+**门禁命令**
+
+```bash
+# 尺寸 / 透明 / 边距 / 四角（16x16 基础物料）
+python tools/validate_pixel_assets.py <mod>/textures/item/*.png --size 16 --min-margin 1
+
+# 复杂器物按 32x32 校验，允许更高色阶
+python tools/validate_pixel_assets.py <mod>/textures/item/<complex_item>.png \
+    --size 32 --min-margin 2 --min-colors 12
+```
+
+色阶下限与哈希重复由 `tools/earth_release_gate.py` 统一把关：`[TEXTURE-FLAT-PALETTE]`（不透明色阶不足）、`no-alpha-silhouette`（透明背景不足）、`[TEXTURE-DUP]`（SHA-256 重复组）、`[TEXTURE-DIM]`（尺寸不是 16/32/64/128/256 或纵向序列帧）。
+
+### 11.2 多通道 ItemTintSource 叠加（保留主封面色调 + 局部高光掩模表达 Tier）
+
+**症状**：文献、护符、器物既要区分学科/流派，又要区分 T0–T4 品阶。直接对整张贴图做两次染色，会把纸张纹理、封面压印、金属高光一起染成单色，品阶越高越像一块色板。
+
+**规则**：染色只作用于**该层自己的像素**，层与层之间靠 alpha 叠加，严禁整图重染覆盖。
+
+| 层 | 贴图 | 内容 | 染色 |
+|---|---|---|---|
+| layer0 | `<item>.png` | 纸张/底材原色，含纹理与暗部 | `minecraft:constant` = -1（不染） |
+| layer1 | `<item>_cover.png` | 皮革封面主体、书脊，纯中性灰白 | `<mod>:discipline` 按学科取色 |
+| layer2 | `<item>_tier_trim.png` | 护角、书扣、卷轴轴头、火漆章环的高光灰度掩模 | `<mod>:tier` 按 T0–T4 取色 |
+
+要点：
+
+1. layer2 必须是**中性灰度**（R≈G≈B），只保留明度信息，染色时才能得到干净的高光；带彩的 trim 会与 tier 颜色相乘出脏色。
+2. layer2 只覆盖局部装饰，面积超过图标 35% 视为"重染整图"的变体，判失败。
+3. 没有 tier 概念的单品只保留 layer0 + layer1 两层，不要为了统一硬加空 trim 层（空层参与 alpha 混合，边缘发灰）。
+4. 未提供数据时必须有 `default` 颜色，且默认值取中性色，避免物品栏出现纯黑或纯白。
+
+**物品定义骨架**（1.21+/26.x 的 `assets/<mod>/items/<item>.json`）：
+
+```json
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "<mod>:item/manuscript",
+    "tints": [
+      { "type": "minecraft:constant", "value": -1 },
+      { "type": "<mod>:discipline", "default": 8421504 },
+      { "type": "<mod>:tier", "default": 9203014 }
+    ]
+  }
+}
+```
+
+**模型骨架**（`assets/<mod>/models/item/manuscript.json`）：
+
+```json
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "<mod>:item/manuscript",
+    "layer1": "<mod>:item/manuscript_cover",
+    "layer2": "<mod>:item/manuscript_tier_trim"
+  }
+}
+```
+
+**TintSource 骨架**（只依赖客户端可读的数据组件，避免双端分歧）：
+
+```java
+public record TierTint(int defaultColor) implements ItemTintSource {
+    public static final MapCodec<TierTint> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
+            ExtraCodecs.RGB_COLOR_CODEC.optionalFieldOf("default", 0x8C6D46).forGetter(TierTint::defaultColor)
+    ).apply(i, TierTint::new));
+
+    public static int colorForTier(int tier) {
+        return switch (tier) {
+            case 1 -> 0xCD7F32;   // T1 铜
+            case 2 -> 0xCFD8DC;   // T2 银
+            case 3 -> 0xFFD54F;   // T3 金
+            case 4 -> 0xB388FF;   // T4 灵
+            default -> 0x8C6D46;  // T0 / 未定阶
+        };
+    }
+
+    @Override
+    public int calculate(ItemStack stack, ClientLevel level, LivingEntity owner) {
+        int tier = stack.getOrDefault(MyComponents.TIER.get(), 0);
+        return ARGB.opaque(colorForTier(tier));
+    }
+
+    @Override
+    public MapCodec<TierTint> type() { return MAP_CODEC; }
+}
+```
+
+注册：NeoForge 的 `RegisterColorHandlersEvent.ItemTintSources` 中 `event.register(TierTint.MAP_CODEC, id("<mod>:tier"))`，学科染色同理。
+
+**检查点**：items JSON 的 `tints` 数量必须等于模型 `layer0..layerN` 的数量；`_tier_trim.png` 必须近灰；三者缺一即报错。
+
+### 11.3 3D 方块物品直指模型 & 多方块核心禁单格合成
+
+**3D 方块物品**
+
+已有 3D 方块模型的功能方块，物品栏必须直接渲染该方块模型：
+
+```json
+{ "model": { "type": "minecraft:model", "model": "<mod>:block/research_table" } }
+```
+
+- 严禁再画一张 2D `textures/item/<block>.png`（`[BLOCK-REDUNDANT-ITEM-PNG]`）；
+- 严禁把物品模型写成 `item/generated` 的平面图（`[BLOCK-ITEM-FLAT-2D]`）；
+- 方块模型改动后清理不再被引用的 `textures/block/*.png`（`[BLOCK-ORPHAN-PNG]`）。
+
+**多方块核心成型**
+
+圣坛、法阵核心这类结构走"摆件 + 祝圣"，而不是单格合成：
+
+1. 玩家在世界中摆好基座与周边器物（烛台、供盘、阵旗、符石）；
+2. 手持法器右键基座，服务端扫描周围结构模板，匹配则**原位**替换为核心方块（保留朝向与玩家归属）；
+3. 移除该核心的单方块工作台配方与创造栏单方块入口，避免玩家跳过摆件直接放成品。
+
+造型上严禁用"同心递减的白方块"堆圆锥塔（白色冰淇淋效应）。按真实台座拆解：宽底座 → 收腰立柱 → 宽挑台面 → 垂布/幡幔，每一段用独立材质通道，避免整塔共用一张贴图。
+
+### 11.4 单核心方块 + NBT 拼装 + 客户端多部件 BER 渲染
+
+面向大型水车组、连排风车、巨型法阵环等"视觉体量远大于 1×1×1"的结构：
+
+- 合成/拼装期把组件规格写入核心的 `DataComponents`（1.21+）或 `CompoundTag`（1.20.1）；
+- 世界内只放 **1 个方块 + 1 个 BlockEntity**，服务端 tick 恒为 O(1)；
+- 客户端 `BlockEntityRenderer` 读同步 NBT，在中心格四周用 `PoseStack` 渲染多部件；
+- 必须扩展 `getRenderBoundingBox()`，否则转视角时整组模型被视锥剔除；
+- 玩家靠近或屏幕内含核心时绘制高亮边框，解决"找不到交互点"。
+
+完整代码骨架、数据闭环（放置/同步/拆下）、碰撞模式与性能守则见 `skills/zershyan-mcmod-style/references/single-block-nbt-ber.md`。三条硬约束：
+
+1. `getUpdateTag()` 与 `getUpdatePacket()` 必须完整，否则客户端 BER 拿到空 NBT，模型只剩中心格；
+2. `playerWillDestroy` / 掉落物必须把已拼装组件写回，禁止一镐拆掉后组件蒸发；
+3. `render()` 内禁止每帧解析 JSON 或反射，解析结果缓存在瞬态字段，仅在 `loadAdditional` / `onDataPacket` 时刷新。
+
+### 11.5 地质露头与地表找矿（裸岩蚀变晕 vs 地表散落矿砾分离）
+
+**症状**：矿化蚀变晕（`*_halo`）为了"看起来明显"，把草方块、泥土、灰化土一起替换成蚀变岩，导致草原与村庄地面出现大片异色斑块，破坏地貌与建筑。
+
+**规则**
+
+1. `*_halo` 只允许替换**天然裸岩露头**：`stone`、`deepslate`、`tuff`、`granite`、`diorite`、`andesite`、`calcite`、`sandstone` 等。
+2. 严禁出现在 `BlockTags.SUBSTRATE_OVERWORLD`（草方块、泥土、灰化土、缠根泥土、苔藓）以及 `farmland`、村庄/农田地面、`dirt_path` 的替换目标里。
+3. 草地、河滩、山麓的前期找矿引导改用**地表碎矿石子**（Surface Float / Loose Pebble）：低矮 3D 小模型，放在地面**上方一格**（不替换地面方块），低密度散落。
+4. 生成时避让村庄：与村庄结构 AABB、`POI` 或已放置的建筑方块距离过近则放弃该点。
+
+**生成参数建议**：每 chunk 最多 1 处信号，概率 0.3~0.5；单处 2~3 个 pebble；只在 `Heightmap.Types.WORLD_SURFACE_WG` 采样，且要求下方为可站立实心方块。
+
+**检查点**：扫 `data/<mod>/worldgen/configured_feature/*halo*.json` 与 `placed_feature`，若 replaceable/targets 中出现草方块、泥土、耕地，直接失败；pebble 的 `from/to` 必须整体在 y>=1 且下方方块可站立。
+
+### 11.6 同名本地化键拦截（[LANG-DUP-NAME]）与聚落村民确定性就业
+
+**同名拦截**
+
+`zh_cn.json` / `en_us.json` 中，不同注册 ID 的物品或方块不允许译成完全相同的显示名。典型故障：`item.<mod>.copper_sword` 与 `item.<mod>.bronze_sword` 都叫"铜剑"，玩家无法区分，JEI 里也查不出差异。门禁按"同前缀 + 同值"分组，命中即失败，要求改名或加限定词（材质/品阶/用途）。
+
+**村民就业**
+
+原版新生成成年 `Villager` 的职业默认是 `minecraft:none`。接管聚落生态时若不处理，会出现整村无业游民、没有交易、聚落看起来是空壳。
+
+1. 首次绑定聚落时，对成年且职业为 `none` 的村民，按**确定性种子**决定是否引导就业，比例约 75%~80%；
+2. 种子由聚落 ID 与实体 UUID 派生，保证同一村民多次加载结果一致、不会反复改职业；
+3. 已是具体职业或 `nitwit` 的村民不动；幼年村民不处理；
+4. 分配后同步职业与交易表，交易内容与该聚落产业匹配。
+
+```java
+private static final float EMPLOY_RATIO = 0.78F;
+
+public static void guideEmployment(ServerLevel level, Villager villager, String settlementId) {
+    if (villager.isBaby()) return;
+    VillagerData data = villager.getVillagerData();
+    if (!data.profession().is(VillagerProfession.NONE)) return;
+
+    long seed = settlementId.hashCode() * 31L + villager.getUUID().getMostSignificantBits();
+    RandomSource random = RandomSource.create(seed);
+    if (random.nextFloat() >= EMPLOY_RATIO) return;
+
+    VillagerProfession profession = pickProfession(level, settlementId, random);
+    villager.setVillagerData(data.setProfession(profession).setLevel(1));
+    villager.setVillagerXp(0);
+    refreshOffers(level, villager);   // 只在职业确定后写交易
+}
+```
+
+门禁对应：`[VILLAGER-NONE-TRADES]`（向无业村民写交易）、`[LANG-DUP-NAME]`（同名不同 ID）。已有 `ResidentProfileManager` 的实现必须保留"先判职业再写交易"的顺序，否则打开交易界面时服务端 offer 列表为空。
+
+
+## 12. 已知限制
 
 - `mcver.py` 的 API 断点检测是常量池字节匹配，可能误报，报告为 failure 时应人工确认
 - `mcver.py doctor` 的内嵌依赖版本来自内层 jar 的 `mods.toml`，内层缺元数据时记为空
@@ -301,3 +515,4 @@ node scripts/test_motion.js       # 9 项断言
 | 2026-10-30 | 新增第 10 节：Blockbench MCP 插件、端点、建模 Skill 安装位置与自检命令 |
 | 2026-11-02 | 第 7 节新增硬性禁令：未经用户当前任务明确允许，严禁擅自运行 `runClient` 或启动游戏客户端测试 |
 | 2026-11-08 | 第 10 节沉淀 3D 模型 UV 挤压（`uv_aspect_squash`）与单图糊全模（`multi_part_single_texture`）防错规约并同步写入 `audit_model.py` 与 `earth_release_gate.py`；登记 `gpt-image-2.6` 动图安全拆帧规范 |
+| 2026-11-11 | 新增第 11 节：分层像素美术（16x16/32x32）与剪影色阶门禁、多通道 ItemTintSource（discipline + tier_trim）叠加、3D 方块物品直指模型与多方块祝圣成型、单核心 NBT + BER 多部件渲染、裸岩蚀变晕与地表碎砾分离、[LANG-DUP-NAME] 与村民确定性就业；同步 `tools/earth_release_gate.py`、`tools/render_block_models_preview.py`、`tools/validate_pixel_assets.py` 与 `single-block-nbt-ber.md` |

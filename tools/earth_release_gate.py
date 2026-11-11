@@ -27,6 +27,7 @@ repositories before any JAR is deployed to the game instance:
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
@@ -35,16 +36,37 @@ from collections import defaultdict
 from pathlib import Path
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[1]
+def _default_root() -> Path:
+    """Prefer the current directory when it holds earth-series/, else this repo's parent."""
+    cwd = Path.cwd()
+    if (cwd / "earth-series").is_dir():
+        return cwd
+    return Path(__file__).resolve().parents[1]
+
+
+# Portable defaults: run from the workspace root that contains `earth-series/`,
+# or pass `--root <workspace>` explicitly. No machine-specific absolute paths.
+ROOT = _default_root()
 EARTH = ROOT / "earth-series"
 
-ACTIVE_MODS = {
-    "earth_lore": EARTH / "earth_lore" / "neoforge-26.1.2",
-    "earth_on_minecraft": EARTH / "earth_on_minecraft" / "neoforge-26.2",
-    "xuanhuan_earth": EARTH / "xuanhuan_earth" / "neoforge-26.2",
-    "fantasy_earth": EARTH / "fantasy_earth" / "neoforge-26.2",
-    "earth_theology": EARTH / "earth_theology" / "neoforge-26.1.2",
+# mod id -> relative target directory inside `earth-series/`.
+MOD_TARGETS = {
+    "earth_lore": "earth_lore/neoforge-26.1.2",
+    "earth_on_minecraft": "earth_on_minecraft/neoforge-26.2",
+    "xuanhuan_earth": "xuanhuan_earth/neoforge-26.2",
+    "fantasy_earth": "fantasy_earth/neoforge-26.2",
+    "earth_theology": "earth_theology/neoforge-26.1.2",
 }
+
+ACTIVE_MODS = {mod_id: EARTH / rel for mod_id, rel in MOD_TARGETS.items()}
+
+
+def set_root(root: Path) -> None:
+    """Rebind the workspace root and every derived mod path."""
+    global ROOT, EARTH, ACTIVE_MODS
+    ROOT = root.resolve()
+    EARTH = ROOT / "earth-series"
+    ACTIVE_MODS = {mod_id: EARTH / rel for mod_id, rel in MOD_TARGETS.items()}
 
 APPARATUS_BLOCKS = {
     "xuanhuan_earth": [
@@ -73,7 +95,7 @@ APPARATUS_BLOCKS = {
         "censer",
         "scripture_lectern",
         "prayer_candle",
-        "shrine_altar",
+        "temple_keystone",
     ],
 }
 
@@ -535,6 +557,16 @@ def check_chat_spam_and_lang_keys(errors: list[str]) -> None:
             errors.append(f"[LANG-KEY-MISSING-ZH] {mod_id} zh_cn.json missing {len(missing_zh)} keys: {', '.join(missing_zh[:8])}")
         if missing_en:
             errors.append(f"[LANG-KEY-MISSING-EN] {mod_id} en_us.json missing {len(missing_en)} keys: {', '.join(missing_en[:8])}")
+        if mod_id != "earth_on_minecraft":
+            for kind_prefix in (f"item.{mod_id}.", f"block.{mod_id}."):
+                by_val: dict[str, list[str]] = defaultdict(list)
+                for k, v in zh.items():
+                    if k.startswith(kind_prefix) and k.count(".") == 2:
+                        by_val[str(v).strip()].append(k)
+                dups_lang = {v: ks for v, ks in by_val.items() if len(ks) > 1}
+                if dups_lang:
+                    sample = "; ".join(f"{v}={ks}" for v, ks in list(dups_lang.items())[:5])
+                    errors.append(f"[LANG-DUP-NAME] {mod_id} zh_cn.json has duplicate {kind_prefix}* names: {sample}")
 
 
 def check_block_models_avoid_redundant_textures(errors: list[str], warnings: list[str]) -> None:
@@ -549,7 +581,7 @@ def check_block_models_avoid_redundant_textures(errors: list[str], warnings: lis
         ti_dir = res / "textures" / "item"
         blocks = [f.stem for f in sorted(bs_dir.glob("*.json"))] if bs_dir.exists() else []
         for b in blocks:
-            if b in ("structure_projection", "settlement_anchor"):
+            if b in ("structure_projection", "settlement_anchor", "shrine_altar", "spirit_grass_crop", "spirit_herb_crop"):
                 continue
             im_f = im_dir / f"{b}.json"
             it_f = it_dir / f"{b}.json"
@@ -599,10 +631,15 @@ def check_textures(warnings: list[str]) -> int:
             if rel_str.startswith(("item/", "block/")):
                 try:
                     with Image.open(p) as im:
+                        w, h_px = im.size
+                        valid_dim = w in (16, 32, 64, 128, 256) and h_px >= w and (h_px % w == 0)
+                        if not valid_dim:
+                            warnings.append(f"[TEXTURE-DIM] {mod_id}/{rel_str} has non-power-of-two/strip size {w}x{h_px}")
                         rgba = im.convert("RGBA")
                         px_list = list(rgba.get_flattened_data() if hasattr(rgba, "get_flattened_data") else rgba.getdata())
+                        is_tint_overlay = rel_str.endswith(("_cover.png", "_tier_trim.png", "_overlay.png"))
                         colors = {px[:3] for px in px_list if px[3] > 16}
-                        if len(colors) < min_colors:
+                        if len(colors) < (3 if is_tint_overlay else min_colors):
                             flat_palettes.append(f"{rel_str}({len(colors)}c)")
                         if rel_str.startswith("item/") and sum(1 for px in px_list if px[3] <= 16) < 24:
                             flat_palettes.append(f"{rel_str}(no-alpha-silhouette)")
@@ -621,6 +658,20 @@ def check_textures(warnings: list[str]) -> int:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Earth-series pre-release gate (read-only).")
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="workspace root containing earth-series/ (default: current working directory)",
+    )
+    args = parser.parse_args()
+    if args.root is not None:
+        set_root(args.root)
+    if not EARTH.is_dir():
+        print(f"EARTH_GATE error: no earth-series/ under {EARTH.parent}")
+        return 2
+
     errors: list[str] = []
     warnings: list[str] = []
 

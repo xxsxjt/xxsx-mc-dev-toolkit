@@ -13,16 +13,36 @@ import sys
 from pathlib import Path
 from PIL import Image, ImageDraw
 
-ROOT = Path(__file__).resolve().parents[1]
+def _default_root() -> Path:
+    """Prefer the current directory when it holds earth-series/, else this repo's parent."""
+    cwd = Path.cwd()
+    if (cwd / 'earth-series').is_dir():
+        return cwd
+    return Path(__file__).resolve().parents[1]
+
+
+# Portable defaults: run from the workspace root that contains `earth-series/`,
+# or pass `--root <workspace>`. No machine-specific absolute paths.
+ROOT = _default_root()
 EARTH = ROOT / 'earth-series'
 OUT_PATH = ROOT / 'workflow-reports' / 'earth-3d-blocks-preview.png'
 
-MOD_DIRS = {
-    'earth_lore': EARTH / 'earth_lore' / 'neoforge-26.1.2',
-    'earth_theology': EARTH / 'earth_theology' / 'neoforge-26.1.2',
-    'xuanhuan_earth': EARTH / 'xuanhuan_earth' / 'neoforge-26.2',
-    'fantasy_earth': EARTH / 'fantasy_earth' / 'neoforge-26.2',
+MOD_TARGETS = {
+    'earth_lore': 'earth_lore/neoforge-26.1.2',
+    'earth_theology': 'earth_theology/neoforge-26.1.2',
+    'xuanhuan_earth': 'xuanhuan_earth/neoforge-26.2',
+    'fantasy_earth': 'fantasy_earth/neoforge-26.2',
 }
+
+MOD_DIRS = {mod_id: EARTH / rel for mod_id, rel in MOD_TARGETS.items()}
+
+
+def set_root(root: Path) -> None:
+    global ROOT, EARTH, OUT_PATH, MOD_DIRS
+    ROOT = root.resolve()
+    EARTH = ROOT / 'earth-series'
+    OUT_PATH = ROOT / 'workflow-reports' / 'earth-3d-blocks-preview.png'
+    MOD_DIRS = {mod_id: EARTH / rel for mod_id, rel in MOD_TARGETS.items()}
 
 def resolve_tex_path(mod_id: str, mod_dir: Path, textures: dict, ref: str) -> Path | None:
     seen = set()
@@ -128,6 +148,21 @@ def render_model_card(mod_id: str, mod_dir: Path, model_path: Path) -> Image.Ima
     return card
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Offline isometric block-model preview sheet.')
+    parser.add_argument('--root', type=Path, default=None,
+                        help='workspace root containing earth-series/ (default: current working directory)')
+    parser.add_argument('--out', type=Path, default=None,
+                        help='output PNG path (default: <root>/workflow-reports/earth-3d-blocks-preview.png)')
+    args = parser.parse_args()
+    if args.root is not None:
+        set_root(args.root)
+    out_path = args.out if args.out is not None else OUT_PATH
+    if not EARTH.is_dir():
+        print(f'no earth-series/ under {EARTH.parent}')
+        return 2
+
     cards: list[Image.Image] = []
     for mod_id, mod_dir in MOD_DIRS.items():
         mdir = mod_dir / 'src' / 'main' / 'resources' / 'assets' / mod_id / 'models' / 'block'
@@ -143,9 +178,9 @@ def main() -> int:
     for idx, card in enumerate(cards):
         r, c = divmod(idx, cols)
         sheet.paste(card, (12 + c * 228, 12 + r * 248))
-    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(OUT_PATH)
-    print(f'Rendered {len(cards)} 3D block models -> {OUT_PATH}')
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(out_path)
+    print(f'Rendered {len(cards)} 3D block models -> {out_path}')
     return 0
 
 if __name__ == '__main__':

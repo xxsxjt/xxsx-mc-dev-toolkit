@@ -1,30 +1,31 @@
 #!/usr/bin/env python3
-"""一键清理 mc-agent 各子工作区已完成无后续任务的 Orca Worker、终端与左侧栏 agent-session 聊天标签页气泡。
+"""Release settled Orca workers and close stale agent-session tabs for a worktree set.
 
-用法：
-    python tools/orca_cleanup_settled.py            # 释放已结束 Worker，并关闭所有非 working 的 agent-session 聊天标签页（保留右侧历史记录）
-    python tools/orca_cleanup_settled.py --reset    # 全部 Worker 收口后重置 orchestration 计数列表
+Portable: no machine-specific paths. Supply the Orca RuntimeClient module path and
+the worktree selectors explicitly, or via environment variables.
+
+Usage:
+    python tools/orca_cleanup_settled.py \
+        --runtime-client <path/to/orca/runtime-client.js> \
+        --worktree path:<repo-a> --worktree path:<repo-b>
+
+    # or set them in the environment
+    ORCA_RUNTIME_CLIENT=<path> ORCA_WORKTREES="<repo-a>;<repo-b>" \
+        python tools/orca_cleanup_settled.py
+
+    python tools/orca_cleanup_settled.py --reset     # also reset counts once all workers settle
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 
-ORCA_RUNTIME_CLIENT = "C:/Users/xxsx/AppData/Local/Programs/orca/resources/app.asar.unpacked/out/cli/runtime-client.js"
-COORDINATOR_SESSION_ID = "codex_8c7f6553_47d7_4947_92a1_a4092637bbb4"
-
-SUB_WORKTREES = [
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/earth-series/earth_on_minecraft",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/earth-series/xuanhuan_earth",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/earth-series/fantasy_earth",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/earth-series/earth_theology",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/earth-series/earth_human",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/earth-series/earth_lore",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/automation/easy_autocrafting",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/automation/xxsx_builder",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/plantmagic/plantmagic_fixes_mod",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/plantmagic/plantmagic_translation_mod",
-    "path:D:/AGENT/WORKSPACES/Projects/mc-agent/temple/mod-[虚无圣殿]Temple of Nihility",
+DEFAULT_RUNTIME_CLIENT = os.environ.get("ORCA_RUNTIME_CLIENT", "")
+DEFAULT_WORKTREES = [
+    item.strip()
+    for item in os.environ.get("ORCA_WORKTREES", "").split(";")
+    if item.strip()
 ]
 
 
@@ -44,10 +45,10 @@ def run_orca(args):
         return {"error": str(e)}
 
 
-def close_settled_session_tabs():
-    """通过 Orca 本地 RuntimeClient 调用 session.tabs.close 关闭所有已结束的 agent-session 标签页。"""
+def close_settled_session_tabs(runtime_client, coordinator_session, worktree_needle):
+    """Close every non-working agent-session tab via Orca's local RuntimeClient."""
     node_script = f"""
-const {{ RuntimeClient }} = require({json.dumps(ORCA_RUNTIME_CLIENT)});
+const {{ RuntimeClient }} = require({json.dumps(runtime_client)});
 (async () => {{
   const client = new RuntimeClient();
   const ps = await client.call('worktree.ps', {{}});
@@ -55,7 +56,7 @@ const {{ RuntimeClient }} = require({json.dumps(ORCA_RUNTIME_CLIENT)});
   const keptTabs = [];
   for (const w of (ps.result.worktrees || [])) {{
     const path = w.path || '';
-    if (!path.includes('mc-agent') && !(w.worktreeId || '').includes('mc-agent')) continue;
+    if ({json.dumps(worktree_needle)} && !path.includes({json.dumps(worktree_needle)}) && !(w.worktreeId || '').includes({json.dumps(worktree_needle)})) continue;
     const wtSelector = 'id:' + w.worktreeId;
     const list = await client.call('session.tabs.list', {{ worktree: wtSelector }});
     const workingSids = new Set();
@@ -67,7 +68,7 @@ const {{ RuntimeClient }} = require({json.dumps(ORCA_RUNTIME_CLIENT)});
     }}
     for (const t of (list.result.tabs || [])) {{
       if (t.type === 'agent-session') {{
-        if (workingSids.has(t.sessionId) || t.sessionId === {json.dumps(COORDINATOR_SESSION_ID)}) {{
+        if (workingSids.has(t.sessionId) || t.sessionId === {json.dumps(coordinator_session)}) {{
           keptTabs.push({{ repo: w.repo, tabId: t.id, title: t.title }});
           continue;
         }}
@@ -105,9 +106,27 @@ const {{ RuntimeClient }} = require({json.dumps(ORCA_RUNTIME_CLIENT)});
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--reset", action="store_true", help="Reset all orchestration workers when batch settles")
+    parser = argparse.ArgumentParser(description="Release settled Orca workers and stale session tabs.")
+    parser.add_argument(
+        "--runtime-client",
+        default=DEFAULT_RUNTIME_CLIENT,
+        help="path to Orca's runtime-client.js (or set ORCA_RUNTIME_CLIENT)",
+    )
+    parser.add_argument(
+        "--worktree",
+        action="append",
+        default=None,
+        help="worktree selector or repo path substring, repeatable (or set ORCA_WORKTREES='a;b')",
+    )
+    parser.add_argument(
+        "--coordinator-session",
+        default=os.environ.get("ORCA_COORDINATOR_SESSION", ""),
+        help="session id whose chat tab must be kept open (or set ORCA_COORDINATOR_SESSION)",
+    )
+    parser.add_argument("--reset", action="store_true", help="reset all orchestration workers once settled")
     args = parser.parse_args()
+
+    worktrees = args.worktree if args.worktree else DEFAULT_WORKTREES
 
     wlist = run_orca(["orchestration", "worker-list"])
     workers = wlist.get("workers", []) if isinstance(wlist, dict) else []
@@ -127,17 +146,23 @@ def main():
     if args.reset and not active:
         run_orca(["orchestration", "reset", "--all"])
 
-    closed_wt = 0
-    for wt in SUB_WORKTREES:
-        run_orca(["worktree", "set", "--worktree", wt, "--workspace-status", "completed", "--read", "--comment", ""])
-        closed_wt += 1
+    cleaned = 0
+    for wt in worktrees:
+        selector = wt if wt.startswith(("path:", "id:")) else f"path:{wt}"
+        run_orca(["worktree", "set", "--worktree", selector, "--workspace-status", "completed",
+                  "--read", "--comment", ""])
+        cleaned += 1
 
-    tab_result = close_settled_session_tabs()
+    if args.runtime_client:
+        needle = worktrees[0].split("path:", 1)[-1] if worktrees else ""
+        tab_result = close_settled_session_tabs(args.runtime_client, args.coordinator_session, needle)
+    else:
+        tab_result = {"skipped": "no --runtime-client / ORCA_RUNTIME_CLIENT provided"}
 
     summary = {
         "releasedWorkers": released,
         "activeWorkersRemaining": active,
-        "cleanedSubWorktrees": closed_wt,
+        "cleanedWorktrees": cleaned,
         "sessionTabCleanup": tab_result,
         "resetAll": bool(args.reset and not active),
     }
@@ -147,3 +172,4 @@ def main():
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     main()
+
