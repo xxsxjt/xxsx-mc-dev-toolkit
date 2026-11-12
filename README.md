@@ -8,6 +8,7 @@ A public, reusable toolkit for multi-version Minecraft mod development, asset va
 - `skills/minecraft-modeling-item/scripts/audit_model.py` and `tools/render_block_models_preview.py`: structural 3D model review, UV aspect-ratio squash checks, single-texture reuse detection, and orthographic isometric previews with UV/texture reuse overlays.
 - `tools/validate_pixel_assets.py`: pixel-icon gate for 16x16 base materials and 32x32 complex artifacts — size, RGBA, binary alpha, transparent corners/margins, opaque color ramp depth, and SHA-256 uniqueness.
 - `tools/earth_release_gate.py`: pre-release static checks for knowledge-node icons, 3D block models, UV distortion, reused textures, flat palettes / no-alpha silhouettes, duplicate names (`[LANG-DUP-NAME]`), 3D block items rendered as flat 2D, redundant/orphan block PNGs, continuous-process properties, and spam-prone content.
+- `tools/model_telemetry.py`: sub-agent model telemetry ledger (`runtime/model-telemetry.jsonl`), Orca worker auto-harvester, playtest feedback scorer (`1..5`), and Bayesian task-category model recommender (`pixel_art`, `model_3d`, `gui_screen`, `worldgen_gameplay`, `compat_arch`, `docs_tooling`).
 - `tools/bb_mcp_client.py`: direct HTTP client for Blockbench MCP without opening dialogs.
 - `skills/`: localized development, publishing, modeling, and creature workflow skills. Machine caches and credentials are excluded.
 - `playbook/MC-DEV-PLAYBOOK.md`: generalized development playbook; replace `<INSTANCE_ROOT>` with paths appropriate to your installation.
@@ -30,6 +31,10 @@ python tools/render_block_models_preview.py --root <workspace>
 # pixel icons: 16x16 simple materials, 32x32 complex artifacts
 python tools/validate_pixel_assets.py <mod>/textures/item/*.png --size 16
 python tools/validate_pixel_assets.py <mod>/textures/item/<artifact>.png --size 32
+
+# query or update adaptive sub-agent model selection
+python tools/model_telemetry.py recommend --category pixel_art
+python tools/model_telemetry.py feedback --score 5 --repo fantasy_earth --category pixel_art --note "clean 20-band ramp"
 ```
 
 ## Modeling and Asset Rules

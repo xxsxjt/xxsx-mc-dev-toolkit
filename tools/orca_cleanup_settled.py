@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 DEFAULT_RUNTIME_CLIENT = os.environ.get("ORCA_RUNTIME_CLIENT", "")
 DEFAULT_WORKTREES = [
@@ -128,6 +129,16 @@ def main():
 
     worktrees = args.worktree if args.worktree else DEFAULT_WORKTREES
 
+    telemetry_harvest = {}
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import model_telemetry  # type: ignore
+
+        ledger = model_telemetry.resolve_ledger_path(Path.cwd())
+        telemetry_harvest = model_telemetry.harvest_from_orca(ledger)
+    except Exception as e:
+        telemetry_harvest = {"error": str(e)}
+
     wlist = run_orca(["orchestration", "worker-list"])
     workers = wlist.get("workers", []) if isinstance(wlist, dict) else []
     released = []
@@ -160,6 +171,7 @@ def main():
         tab_result = {"skipped": "no --runtime-client / ORCA_RUNTIME_CLIENT provided"}
 
     summary = {
+        "telemetryHarvested": telemetry_harvest.get("harvested", 0),
         "releasedWorkers": released,
         "activeWorkersRemaining": active,
         "cleanedWorktrees": cleaned,
